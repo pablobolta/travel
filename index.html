@@ -180,42 +180,62 @@
     const cleaned = text.replace(/^\uFEFF/, ""); // elimina BOM si existe
     const parsed = JSON.parse(cleaned);
 
+    // 1) Encuentra la lista real de países dentro del JSON (sea array directo o esté envuelto)
     let list = [];
-
+    
     if (Array.isArray(parsed)) {
       list = parsed;
     } else if (parsed && typeof parsed === "object") {
-      if (Array.isArray(parsed.countries)) list = parsed.countries;
-      else if (Array.isArray(parsed.data)) list = parsed.data;
-      else list = Object.values(parsed); // <- clave: soporta JSON en forma de objeto
+      // intenta wrappers comunes
+      const candidates = [parsed.countries, parsed.data, parsed.items, parsed.results];
+      const firstArrayCandidate = candidates.find(v => Array.isArray(v));
+      if (firstArrayCandidate) {
+        list = firstArrayCandidate;
+      } else {
+        // si no, busca el primer valor que sea array dentro del objeto
+        const arrays = Object.values(parsed).filter(v => Array.isArray(v));
+        if (arrays.length) list = arrays[0];
+      }
     }
     
-   if (!list.length) {
-      const type =
-        parsed === null ? "null" :
-        Array.isArray(parsed) ? "array" :
-        typeof parsed;
-    
-      const head = cleaned
-        .slice(0, 120)
-        .replace(/\s+/g, " ")
-        .trim();
-    
-      throw new Error(`countries.json no trae lista. type=${type}. head="${head}"`);
+    // Si viene como array de arrays, aplana
+    if (Array.isArray(list) && list.length && Array.isArray(list[0])) {
+      list = list.flat();
     }
-
-
+    
+    if (!Array.isArray(list) || !list.length) {
+      throw new Error("countries.json no trae una lista válida de países (no se encontró ningún array utilizable)");
+    }
+    
+    // 2) Construye countries de forma tolerante a campos
+    function pick(obj, keys) {
+      for (const k of keys) {
+        if (obj && obj[k] != null) return obj[k];
+      }
+      return null;
+    }
+    
     countries = list
-      .filter(x => x && x.country && x.alpha3 && x.latitude != null && x.longitude != null)
-      .map(x => ({
-        name: String(x.country),
-        a3: String(x.alpha3).toUpperCase(),
-        lat: Number(x.latitude),
-        lon: Number(x.longitude),
-      }))
-      .filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lon));
+      .map(x => {
+        const name = pick(x, ["country", "name", "Country"]);
+        const a3 = pick(x, ["alpha3", "alpha_3", "cca3", "iso3"]) || "";
+        const lat = Number(pick(x, ["latitude", "lat", "Latitude"]));
+        const lon = Number(pick(x, ["longitude", "lon", "lng", "long", "Longitude"]));
+        return {
+          name: name ? String(name) : "",
+          a3: String(a3).toUpperCase(),
+          lat,
+          lon
+        };
+      })
+      .filter(c => c.name && Number.isFinite(c.lat) && Number.isFinite(c.lon));
+    
+    if (!countries.length) {
+      throw new Error("No se pudo construir la lista de países desde countries.json (campos no coinciden)");
+    }
+    
 
-    if (!countries.length) throw new Error("No se pudo construir la lista de países desde countries.json");
+
 
     // Autocomplete
     $list.innerHTML = "";
