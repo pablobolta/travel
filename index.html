@@ -169,9 +169,12 @@
     // elimina BOM si existe (causa típica de fallo al parsear JSON)
     const cleaned = text.replace(/^\uFEFF/, "");
     const raw = JSON.parse(cleaned);
+    const list = Array.isArray(raw) ? raw : (Array.isArray(raw.countries) ? raw.countries : []);
 
+    const list = Array.isArray(raw) ? raw : (Array.isArray(raw.countries) ? raw.countries : []);
+    if (!list.length) throw new Error("countries.json no contiene una lista (array) de países en la raíz ni en raw.countries");
 
-    countries = raw
+    countries = list
       .filter(x => x && x.country && x.alpha3 && x.latitude != null && x.longitude != null)
       .map(x => ({
         name: String(x.country),
