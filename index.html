@@ -161,19 +161,28 @@
   }
 
   async function init() {
-    const url = "./countries.json?v=" + Date.now(); // rompe caché siempre
+    // Mensaje inmediato para confirmar que el JS está corriendo
+    $status.textContent = "Descargando países…";
+    $hint.textContent = "";
+  
+    const url = "./countries.json?v=" + Date.now(); // rompe caché
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status + " al cargar " + url);
-    
+  
+    $status.textContent = "Procesando países…";
     const text = await res.text();
-    // elimina BOM si existe (causa típica de fallo al parsear JSON)
-    const cleaned = text.replace(/^\uFEFF/, "");
-    const raw = JSON.parse(cleaned);
-    const list = Array.isArray(raw) ? raw : (Array.isArray(raw.countries) ? raw.countries : []);
-
-    const list = Array.isArray(raw) ? raw : (Array.isArray(raw.countries) ? raw.countries : []);
-    if (!list.length) throw new Error("countries.json no contiene una lista (array) de países en la raíz ni en raw.countries");
-
+    const cleaned = text.replace(/^\uFEFF/, ""); // elimina BOM si existe
+    const parsed = JSON.parse(cleaned);
+  
+    const list = Array.isArray(parsed)
+      ? parsed
+      : (Array.isArray(parsed.countries) ? parsed.countries : []);
+  
+    if (!list.length) {
+      throw new Error("countries.json no trae una lista válida (array o {countries:[...]})");
+    }
+  
+    // Construye la lista de países (alpha3 + coords)
     countries = list
       .filter(x => x && x.country && x.alpha3 && x.latitude != null && x.longitude != null)
       .map(x => ({
@@ -183,19 +192,37 @@
         lon: Number(x.longitude),
       }))
       .filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lon));
-
+  
+    if (!countries.length) throw new Error("No se pudo construir la lista de países desde countries.json");
+  
+    // Rellena el datalist de autocompletar
+    $list.innerHTML = "";
     for (const c of countries) {
       const opt = document.createElement("option");
       opt.value = c.name;
       $list.appendChild(opt);
     }
 
-    target = countries.find(x => x.a3 === TARGET_ALPHA3);
-    if (!target) {
-      $status.textContent = `Error: no encuentro el país objetivo (${TARGET_ALPHA3}).`;
-      $hint.textContent = "Revisa TARGET_ALPHA3_B64.";
-      return;
-    }
+  // Encuentra el objetivo
+  target = countries.find(x => x.a3 === TARGET_ALPHA3);
+  if (!target) throw new Error("No encuentro el país objetivo (alpha3=" + TARGET_ALPHA3 + ") en countries.json");
+
+  // Carga intentos previos y actualiza UI
+  load();
+  renderAttempts();
+
+  if (attempts.length === 0) {
+    $status.textContent = "Listo. Empieza a probar países.";
+    $hint.textContent = "Te diré distancia aproximada y dirección.";
+    setHeat(8000);
+  } else {
+    const last = attempts[attempts.length - 1];
+    $status.textContent = "Partida cargada. Sigue.";
+    $hint.textContent = `Último intento: ${last.km.toFixed(0)} km (${last.dir}).`;
+    setHeat(last.km);
+  }
+}
+
 
     load();
     renderAttempts();
@@ -265,8 +292,10 @@
 
   init().catch(err => {
     $status.textContent = "Error cargando el juego: " + (err && err.message ? err.message : String(err));
+    $hint.textContent = "Abre la consola (F12) si necesitas más detalle.";
     console.error(err);
   });
+
 })();
 </script>
 </body>
