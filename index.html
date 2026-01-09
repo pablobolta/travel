@@ -190,8 +190,18 @@
       else list = Object.values(parsed); // <- clave: soporta JSON en forma de objeto
     }
     
-    if (!list.length) {
-      throw new Error("countries.json no trae una lista válida de países (array, countries/data, o valores de objeto)");
+   if (!list.length) {
+      const type =
+        parsed === null ? "null" :
+        Array.isArray(parsed) ? "array" :
+        typeof parsed;
+    
+      const head = cleaned
+        .slice(0, 120)
+        .replace(/\s+/g, " ")
+        .trim();
+    
+      throw new Error(`countries.json no trae lista. type=${type}. head="${head}"`);
     }
 
 
