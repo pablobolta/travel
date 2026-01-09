@@ -161,7 +161,7 @@
   }
 
   async function init() {
-    const res = await fetch("./countries.json", { cache: "no-store" });
+    const res = await fetch("./countries.json?v=1", { cache: "no-store" });
     const raw = await res.json();
 
     countries = raw
