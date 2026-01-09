@@ -180,13 +180,20 @@
     const cleaned = text.replace(/^\uFEFF/, ""); // elimina BOM si existe
     const parsed = JSON.parse(cleaned);
 
-    // Normaliza a lista (admite array o wrapper con countries/data)
-    const list = Array.isArray(parsed)
-      ? parsed
-      : (Array.isArray(parsed.countries) ? parsed.countries
-        : (Array.isArray(parsed.data) ? parsed.data : []));
+    let list = [];
 
-    if (!list.length) throw new Error("countries.json no trae una lista válida de países");
+    if (Array.isArray(parsed)) {
+      list = parsed;
+    } else if (parsed && typeof parsed === "object") {
+      if (Array.isArray(parsed.countries)) list = parsed.countries;
+      else if (Array.isArray(parsed.data)) list = parsed.data;
+      else list = Object.values(parsed); // <- clave: soporta JSON en forma de objeto
+    }
+    
+    if (!list.length) {
+      throw new Error("countries.json no trae una lista válida de países (array, countries/data, o valores de objeto)");
+    }
+
 
     countries = list
       .filter(x => x && x.country && x.alpha3 && x.latitude != null && x.longitude != null)
