@@ -161,8 +161,15 @@
   }
 
   async function init() {
-    const res = await fetch("./countries.json?v=1", { cache: "no-store" });
-    const raw = await res.json();
+    const url = "./countries.json?v=" + Date.now(); // rompe caché siempre
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status + " al cargar " + url);
+    
+    const text = await res.text();
+    // elimina BOM si existe (causa típica de fallo al parsear JSON)
+    const cleaned = text.replace(/^\uFEFF/, "");
+    const raw = JSON.parse(cleaned);
+
 
     countries = raw
       .filter(x => x && x.country && x.alpha3 && x.latitude != null && x.longitude != null)
@@ -254,7 +261,7 @@
   $btnReset.addEventListener("click", onReset);
 
   init().catch(err => {
-    $status.textContent = "Error cargando el juego. Revisa que countries.json exista en la misma carpeta.";
+    $status.textContent = "Error cargando el juego: " + (err && err.message ? err.message : String(err));
     console.error(err);
   });
 })();
